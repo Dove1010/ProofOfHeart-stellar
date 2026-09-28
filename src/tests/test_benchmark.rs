@@ -162,9 +162,9 @@ fn make_revenue_campaign(
         funding_goal: 1_000,
         duration_days: 30,
         category: Category::EducationalStartup,
-        has_revenue_sharing: true,        // Feature-rich: revenue sharing enabled
-        revenue_share_percentage: 1000,   // 10% revenue share
-        max_contribution_per_user: 0,     // No cap
+        has_revenue_sharing: true, // Feature-rich: revenue sharing enabled
+        revenue_share_percentage: 1000, // 10% revenue share
+        max_contribution_per_user: 0, // No cap
     }
 }
 

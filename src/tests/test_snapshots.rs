@@ -9,7 +9,11 @@ use super::helpers::*;
 use crate::{storage, Category, CreateCampaignParams};
 use soroban_sdk::String;
 
-fn params(env: &soroban_sdk::Env, creator: &soroban_sdk::Address, title: &str) -> CreateCampaignParams {
+fn params(
+    env: &soroban_sdk::Env,
+    creator: &soroban_sdk::Address,
+    title: &str,
+) -> CreateCampaignParams {
     CreateCampaignParams {
         creator: creator.clone(),
         title: String::from_str(env, title),
@@ -38,9 +42,8 @@ fn test_campaign_initial_state_snapshot() {
     // Verify campaign state invariants
     assert_eq!(campaign.funding_goal, 5000);
     assert_eq!(campaign.amount_raised, 0);
-    assert_eq!(campaign.approval_votes, 0);
-    assert_eq!(campaign.rejection_votes, 0);
-    assert_eq!(campaign.amount_refunded, 0);
+    assert_eq!(client.get_approve_votes(&id), 0);
+    assert_eq!(client.get_reject_votes(&id), 0);
     assert!(!campaign.is_cancelled);
     assert!(!campaign.funds_withdrawn);
 }
@@ -76,8 +79,8 @@ fn test_contributed_campaign_state_snapshot() {
     let campaign = client.get_campaign(&id);
 
     assert_eq!(campaign.amount_raised, 2500);
-    assert_eq!(campaign.approval_votes, 0);
-    assert_eq!(campaign.rejection_votes, 0);
+    assert_eq!(client.get_approve_votes(&id), 0);
+    assert_eq!(client.get_reject_votes(&id), 0);
     assert!(!campaign.is_cancelled);
     assert!(!campaign.funds_withdrawn);
 }
@@ -120,7 +123,9 @@ fn test_cancelled_campaign_state_snapshot() {
 
     assert!(campaign.is_cancelled);
     assert_eq!(campaign.amount_raised, 3000);
-    assert_eq!(campaign.amount_refunded, 0);
+    // No refund claimed yet: the contributor's balance is unchanged by the
+    // cancellation itself.
+    assert_eq!(platform.balance(&contributor1), 7_000);
 }
 
 /// Test: Withdrawn campaign state snapshot shows funds_withdrawn flag set
@@ -201,8 +206,8 @@ fn test_complex_lifecycle_state_snapshot() {
     let campaign = client.get_campaign(&id);
 
     assert_eq!(campaign.amount_raised, 3500);
-    assert_eq!(campaign.approval_votes, 1);
-    assert_eq!(campaign.rejection_votes, 1);
+    assert_eq!(client.get_approve_votes(&id), 1);
+    assert_eq!(client.get_reject_votes(&id), 1);
 }
 
 /// Test: Storage structure invariants are validated: campaign count
@@ -247,7 +252,9 @@ fn test_refund_accounting_state_snapshot() {
 
     assert!(campaign.is_cancelled);
     assert_eq!(campaign.amount_raised, 5000);
-    assert!(campaign.amount_refunded >= 3000);
+    // contributor1 claimed their 3000 refund; contributor2 claimed nothing.
+    assert_eq!(platform.balance(&contributor1), 10_000);
+    assert_eq!(platform.balance(&contributor2), 3_000);
 }
 
 /// Test: Batch contribution state preserves individual campaign amounts

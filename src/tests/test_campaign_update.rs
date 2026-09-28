@@ -2,7 +2,7 @@ use super::helpers::*;
 use crate::{AdminKey, Category, CreateCampaignParams, Error, MaybePendingCreator};
 use soroban_sdk::{
     testutils::{AuthorizedFunction, AuthorizedInvocation},
-    Address, IntoVal, String, Symbol,
+    Address, FromVal, IntoVal, String, Symbol, TryFromVal,
 };
 
 #[test]
@@ -563,15 +563,9 @@ fn test_cancel_campaign_transfer_emits_creator() {
         .iter()
         .find(|(_, topics, _)| {
             topics
-                .to_vec()
-                .first()
-                .map(|t| {
-                    if let soroban_sdk::Val::String(s) = t {
-                        s.to_string(&env) == "campaign_transfer_cancelled"
-                    } else {
-                        false
-                    }
-                })
+                .get(0)
+                .and_then(|v| String::try_from_val(&env, &v).ok())
+                .map(|s| s == String::from_str(&env, "campaign_transfer_cancelled"))
                 .unwrap_or(false)
         })
         .expect("No cancel event found");
@@ -579,17 +573,17 @@ fn test_cancel_campaign_transfer_emits_creator() {
     // The event data contains both creator and pending address.
     // Topics: ("campaign_transfer_cancelled", campaign_id, creator)
     // Data: pending_address
-    let topics = cancel_event.1.to_vec();
+    let topics = &cancel_event.1;
     assert_eq!(topics.len(), 3);
-    if let soroban_sdk::Val::String(s) = &topics[0] {
-        assert_eq!(s.to_string(&env), "campaign_transfer_cancelled");
-    } else {
-        panic!("Expected first topic to be the event name");
-    }
+    let topic_name: String = String::try_from_val(&env, &topics.get(0).unwrap()).unwrap();
+    assert_eq!(
+        topic_name,
+        String::from_str(&env, "campaign_transfer_cancelled")
+    );
 
     // Verify the creator is included in the event topics
-    let creator_in_topics = topics.get(2).cloned();
-    assert!(creator_in_topics.is_some());
+    let creator_in_topics: Address = FromVal::from_val(&env, &topics.get(2).unwrap());
+    assert_eq!(creator_in_topics, creator);
 
     let campaign = client.get_campaign(&campaign_id);
     assert_eq!(campaign.pending_creator, MaybePendingCreator::None);

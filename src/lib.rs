@@ -209,13 +209,14 @@ impl ProofOfHeart {
         set_withdraw_release_delay_days(&env, delay_days);
         set_withdraw_reserve_percentage(&env, reserve_bps);
 
-        env.events()
-            .publish(("vesting_params_updated", &admin), (delay_days, reserve_bps));
+        env.events().publish(
+            ("vesting_params_updated", &admin),
+            (delay_days, reserve_bps),
+        );
 
         campaigns::withdraw::set_vesting_params(&env, admin, delay_days, reserve_bps);
 
         Ok(())
-        campaigns::withdraw::set_vesting_params(&env, admin, delay_days, reserve_bps)
     }
 
     // ── Emergency withdrawal — admin last-resort recovery (#802) ───────────────
@@ -1173,6 +1174,3 @@ impl ProofOfHeart {
 
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod milestones;

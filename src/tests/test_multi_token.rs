@@ -469,8 +469,7 @@ fn test_withdrawal_with_revenue_share_in_campaign_currency() {
 fn test_batch_operations_with_three_currencies() {
     let (env, admin, creator, contributor1, _, platform, platform_admin, client) = setup_env();
     let (usdc, usdc_token, usdc_admin) = second_currency(&env, &admin, &client);
-    let (euroc, euroc_token, euroc_admin) =
-        second_currency(&env, &admin, &client);
+    let (euroc, euroc_token, euroc_admin) = second_currency(&env, &admin, &client);
 
     platform_admin.mint(&contributor1, &10_000);
     usdc_admin.mint(&contributor1, &10_000);

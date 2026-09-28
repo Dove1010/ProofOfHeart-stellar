@@ -11,7 +11,18 @@ fn test_create_and_get_campaign() {
         String::from_str(&env, "Test Campaign"),
         String::from_str(&env, "A test campaign"),
         1_000,
-use soroban_sdk::{Address, IntoVal, String};
+        30,
+        Category::Learner,
+        false,
+        0,
+        0i128,
+    ));
+
+    let campaign = client.get_campaign(&campaign_id);
+    assert_eq!(campaign.creator, creator);
+    assert_eq!(campaign.is_active, true);
+    assert_eq!(campaign.amount_raised, 0);
+}
 
 #[test]
 fn test_save_and_get_saved_campaigns() {
@@ -210,10 +221,33 @@ fn test_save_campaign_then_cancel() {
         0i128,
     ));
 
-    let campaign = client.get_campaign(&campaign_id);
+    let campaign = client.get_campaign(&id);
     assert_eq!(campaign.creator, creator);
     assert_eq!(campaign.is_active, true);
     assert_eq!(campaign.amount_raised, 0);
+
+    // Contributor bookmarks the campaign
+    client.save_campaign(&contributor1, &id);
+    let saved = client.get_saved_campaigns(&contributor1);
+    assert_eq!(saved.len(), 1);
+    assert_eq!(saved.get(0).unwrap(), id);
+
+    // Creator cancels the campaign
+    client.cancel_campaign(&id);
+
+    // A cancelled campaign is no longer a live bookmark: get_saved_campaigns
+    // filters it out so clients don't need a per-id lookup to tell a stale
+    // bookmark from a live one (#667).
+    let saved_after_cancel = client.get_saved_campaigns(&contributor1);
+    assert_eq!(saved_after_cancel, soroban_sdk::vec![&env]);
+
+    // The count reflects the filtered (live) list too.
+    assert_eq!(client.get_saved_campaigns_count(&contributor1), 0);
+
+    // Campaign is cancelled
+    let campaign = client.get_campaign(&id);
+    assert!(campaign.is_cancelled);
+    assert!(!campaign.is_active);
 }
 
 #[test]
@@ -244,28 +278,6 @@ fn test_get_nonexistent_campaign() {
 
     let res = client.try_get_campaign(&999);
     assert_eq!(res.unwrap_err().unwrap(), Error::CampaignNotFound);
-    // Contributor bookmarks the campaign
-    client.save_campaign(&contributor1, &id);
-    let saved = client.get_saved_campaigns(&contributor1);
-    assert_eq!(saved.len(), 1);
-    assert_eq!(saved.get(0).unwrap(), id);
-
-    // Creator cancels the campaign
-    client.cancel_campaign(&id);
-
-    // A cancelled campaign is no longer a live bookmark: get_saved_campaigns
-    // filters it out so clients don't need a per-id lookup to tell a stale
-    // bookmark from a live one (#667).
-    let saved_after_cancel = client.get_saved_campaigns(&contributor1);
-    assert_eq!(saved_after_cancel, soroban_sdk::vec![&env]);
-
-    // The count reflects the filtered (live) list too.
-    assert_eq!(client.get_saved_campaigns_count(&contributor1), 0);
-
-    // Campaign is cancelled
-    let campaign = client.get_campaign(&id);
-    assert!(campaign.is_cancelled);
-    assert!(!campaign.is_active);
 }
 
 #[test]

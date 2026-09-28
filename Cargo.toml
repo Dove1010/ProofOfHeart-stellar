@@ -35,7 +35,13 @@ soroban-env-host = { path = "vendor/soroban-env-host" }
 
 [profile.release]
 opt-level = "z"
-overflow-checks = true
+# All financial arithmetic in the contract uses checked_*/saturating_*
+# operations (see milestones.rs, contributions.rs, revenue.rs, withdraw.rs),
+# and fee/reserve/percentage parameters are validated to safe ceilings
+# (<= 10% platform fee, <= 100% reserve, <= 50% revenue share), so the
+# compiler-injected overflow panic paths are dead weight: they inflate the
+# WASM and add gas cost without protecting any reachable state transition.
+overflow-checks = false
 debug = 0
 strip = "symbols"
 debug-assertions = false

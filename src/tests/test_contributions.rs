@@ -3,11 +3,11 @@ use crate::{
     storage, Category, ContributionKey, CreateCampaignParams, Error, RevenueKey, StorageKey,
     SECONDS_PER_DAY,
 };
+use proptest::prelude::*;
 use soroban_sdk::{
     testutils::{AuthorizedFunction, AuthorizedInvocation},
     Address, IntoVal, String, Symbol,
 };
-use proptest::prelude::*;
 
 // ── contribute & basic failure states ───────────────────────────────────────────
 
@@ -1573,7 +1573,7 @@ proptest! {
         let should_succeed = attempted_total <= cap;
 
         match client.try_contribute(&campaign_id, &contributor1, &second_contrib) {
-            Ok(_) => {
+            Ok(Ok(())) => {
                 prop_assert!(should_succeed,
                     "Contribution should succeed only if within cap: {} <= {}",
                     attempted_total, cap);
@@ -1581,12 +1581,14 @@ proptest! {
                 prop_assert_eq!(recorded, attempted_total,
                     "Recorded contribution should be sum of both");
             }
-            Err(Some(Error::ContributionCapExceeded)) => {
+            Err(Ok(Error::ContributionCapExceeded)) => {
                 prop_assert!(!should_succeed,
                     "Contribution should fail only if exceeds cap: {} > {}",
                     attempted_total, cap);
             }
-            Err(e) => prop_assert!(false, "Unexpected error: {:?}", e),
+            Ok(Err(e)) => prop_assert!(false, "Conversion error: {:?}", e),
+            Err(Ok(other)) => prop_assert!(false, "Unexpected contract error: {:?}", other),
+            Err(Err(e)) => prop_assert!(false, "Invoke error: {:?}", e),
         }
     }
 }

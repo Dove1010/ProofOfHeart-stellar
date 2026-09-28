@@ -167,7 +167,7 @@ fn test_description_length_boundaries() {
     assert!(client
         .try_create_campaign(&make_params(
             creator.clone(),
-            String::from_str(&env, &std::format!("{} {}", title, 1)),
+            String::from_str(&env, "T1 1"),
             String::from_str(&env, "a"),
             1000,
             30,
@@ -194,7 +194,6 @@ fn test_description_length_boundaries() {
         .is_ok());
 
     let desc_1001 = "a".repeat(1001);
-    let title3 = String::from_str(&env, "Title 3");
     let res = client.try_create_campaign(&make_params(
         creator.clone(),
         String::from_str(&env, "T4"),

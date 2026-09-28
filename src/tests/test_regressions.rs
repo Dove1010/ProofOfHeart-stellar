@@ -131,7 +131,7 @@ fn make_campaign_params_simple(env: &Env, creator: &Address, seq: u32) -> Create
 fn make_campaign_params_titled(env: &Env, creator: &Address, title: &str) -> CreateCampaignParams {
     CreateCampaignParams {
         title: String::from_str(env, title),
-        ..make_campaign_params_simple(env, creator)
+        ..make_campaign_params_simple(env, creator, 0)
     }
 }
 
@@ -196,6 +196,7 @@ fn test_get_campaigns_by_category_capped_at_list_max_limit() {
         creator: creator.clone(),
         first_creator: creator.clone(),
         pending_creator: crate::types::MaybePendingCreator::None,
+        pending_creator_expiry: 0,
         title: String::from_str(&env, "T"),
         description: String::from_str(&env, "D"),
         funding_goal: 1,
@@ -226,7 +227,7 @@ fn test_get_campaigns_by_category_capped_at_list_max_limit() {
     });
 
     let result = client.get_campaigns_by_category(&Category::Learner, &0u32, &1000u32);
-    assert_eq!(result.len(), 20);
+    assert_eq!(result.0.len(), 20);
 }
 
 #[test]
@@ -234,7 +235,7 @@ fn test_get_campaigns_by_category_small_limit_respected() {
     let (env, _, creator, _, _, _, _, client) = setup_env();
     for i in 0..10 {
         let title_str = format!("T{}", i);
-        let mut p = make_campaign_params_simple(&env, &creator);
+        let mut p = make_campaign_params_simple(&env, &creator, 0);
         p.title = String::from_str(&env, &title_str);
         client.create_campaign(&p);
     }
@@ -642,8 +643,8 @@ fn test_platform_stats_counters_track_lifecycle() {
     assert!(!stats.stats_are_partial);
 
     // Create two campaigns.
-    let p1 = make_campaign_params_simple(&env, &creator);
-    let mut p2 = make_campaign_params_simple(&env, &creator);
+    let p1 = make_campaign_params_simple(&env, &creator, 0);
+    let mut p2 = make_campaign_params_simple(&env, &creator, 0);
     p2.title = String::from_str(&env, "T2");
     let id1 = client.create_campaign(&p1);
     let id2 = client.create_campaign(&p2);
@@ -677,7 +678,7 @@ fn test_platform_stats_never_partial() {
 
     for i in 0..5 {
         let title_str = format!("T{}", i);
-        let mut p = make_campaign_params_simple(&env, &creator);
+        let mut p = make_campaign_params_simple(&env, &creator, 0);
         p.title = String::from_str(&env, &title_str);
         client.create_campaign(&p);
     }
@@ -696,7 +697,7 @@ fn test_platform_stats_never_partial() {
 #[test]
 fn test_platform_stats_flags_active_counter_exceeding_total() {
     let (env, _, creator, _, _, _, _, client) = setup_env();
-    client.create_campaign(&make_campaign_params_simple(&env, &creator));
+    client.create_campaign(&make_campaign_params_simple(&env, &creator, 0));
 
     // Simulate a partial migration: the active counter was written but the
     // campaign-count key was rolled back / never written.
@@ -729,7 +730,7 @@ fn test_platform_stats_flags_active_counter_exceeding_total() {
 #[test]
 fn test_platform_stats_flags_cancelled_counter_exceeding_total() {
     let (env, _, creator, _, _, _, _, client) = setup_env();
-    client.create_campaign(&make_campaign_params_simple(&env, &creator));
+    client.create_campaign(&make_campaign_params_simple(&env, &creator, 0));
 
     env.as_contract(&client.address, || {
         crate::storage::set_cancelled_campaign_count(&env, 7);
@@ -744,7 +745,7 @@ fn test_platform_stats_flags_cancelled_counter_exceeding_total() {
 #[test]
 fn test_platform_stats_flags_verified_counter_exceeding_total() {
     let (env, _, creator, _, _, _, _, client) = setup_env();
-    client.create_campaign(&make_campaign_params_simple(&env, &creator));
+    client.create_campaign(&make_campaign_params_simple(&env, &creator, 0));
 
     env.as_contract(&client.address, || {
         crate::storage::set_verified_campaign_count(&env, 3);
@@ -1210,7 +1211,7 @@ fn test_list_active_campaigns_reaches_campaigns_beyond_old_200_scan_window() {
     let mut last_id = 0u32;
     for i in 0..20 {
         let title_str = format!("T{}", i);
-        let mut p = make_campaign_params_simple(&env, &creator);
+        let mut p = make_campaign_params_simple(&env, &creator, 0);
         p.title = String::from_str(&env, &title_str);
         last_id = client.create_campaign(&p);
     }
@@ -1256,7 +1257,7 @@ fn test_create_campaign_at_u32_max_returns_overflow() {
 fn test_claim_refund_double_claim_rejected() {
     let (env, _, creator, contributor1, _, _token, token_admin, client) = setup_env();
 
-    let mut params = make_campaign_params_simple(&env, &creator);
+    let mut params = make_campaign_params_simple(&env, &creator, 0);
     params.funding_goal = 1_000;
     let campaign_id = client.create_campaign(&params);
     client.verify_campaign(&campaign_id);
@@ -1412,11 +1413,7 @@ fn test_admin_cancel_decrements_total_raised_global() {
 
     assert_eq!(client.get_total_raised_global(), goal);
 
-    client.admin_cancel_campaign(
-        &admin,
-        &id,
-        &String::from_str(&env, "fraud detected"),
-    );
+    client.admin_cancel_campaign(&admin, &id, &String::from_str(&env, "fraud detected"));
 
     assert_eq!(client.get_total_raised_global(), 0);
 }
@@ -1573,8 +1570,14 @@ fn test_burst_guard_block_counts_are_per_campaign_not_global() {
     env.as_contract(&client.address, || {
         let (_, count_a) = crate::storage::get_campaign_block_contribution_count(&env, id_a);
         let (_, count_b) = crate::storage::get_campaign_block_contribution_count(&env, id_b);
-        assert_eq!(count_a, 1, "campaign A count must be 1 (per-campaign, not global)");
-        assert_eq!(count_b, 1, "campaign B count must be 1 (per-campaign, not global)");
+        assert_eq!(
+            count_a, 1,
+            "campaign A count must be 1 (per-campaign, not global)"
+        );
+        assert_eq!(
+            count_b, 1,
+            "campaign B count must be 1 (per-campaign, not global)"
+        );
     });
 }
 
@@ -1640,7 +1643,8 @@ fn funded_campaign_852(
 fn test_reserve_withheld_event_carries_campaign_creator_and_amount() {
     let (env, admin, creator, contributor, _, _token, token_admin, client) = setup_env();
 
-    let campaign_id = funded_campaign_852(&env, &admin, &creator, &contributor, &token_admin, &client);
+    let campaign_id =
+        funded_campaign_852(&env, &admin, &creator, &contributor, &token_admin, &client);
 
     let now = env.ledger().timestamp();
     env.ledger().with_mut(|li| {
@@ -1671,7 +1675,8 @@ fn test_reserve_withheld_event_carries_campaign_creator_and_amount() {
 fn test_reserve_released_event_carries_campaign_creator_and_amount() {
     let (env, admin, creator, contributor, _, token, token_admin, client) = setup_env();
 
-    let campaign_id = funded_campaign_852(&env, &admin, &creator, &contributor, &token_admin, &client);
+    let campaign_id =
+        funded_campaign_852(&env, &admin, &creator, &contributor, &token_admin, &client);
 
     let now = env.ledger().timestamp();
     env.ledger().with_mut(|li| {

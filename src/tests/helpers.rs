@@ -121,7 +121,9 @@ pub(crate) fn setup_env<'a>() -> (
     setup
 }
 
-pub(crate) fn setup_env_with_version<'a>(version: u32) -> (
+pub(crate) fn setup_env_with_version<'a>(
+    version: u32,
+) -> (
     Env,
     Address,
     Address,
@@ -163,6 +165,8 @@ pub(crate) fn setup_env_with_version<'a>(version: u32) -> (
         token_admin,
         client,
     )
+}
+
 pub(crate) fn setup_token<'a>(env: &Env, admin: &Address) -> TokenClient<'a> {
     let token_address = env.register_stellar_asset_contract(admin.clone());
     TokenClient::new(env, &token_address)
